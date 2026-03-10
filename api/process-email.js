@@ -1,21 +1,9 @@
-const express = require("express");
-const cors = require("cors");
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-const app = express();
-
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
-
-app.post("/", async (req, res) => {
   const { subject, body, image } = req.body;
-
-  console.log("Received email:");
-  console.log("Subject:", subject);
-  console.log("Body:", body);
-  console.log(
-    "Image size (bytes):",
-    image ? Buffer.from(image, "base64").length : "No image"
-  );
 
   const analysis = {
     summary: "Correo analizado correctamente",
@@ -23,11 +11,9 @@ app.post("/", async (req, res) => {
     destinationEmail: "destino@empresa.com",
   };
 
-  res.json({
+  res.status(200).json({
     success: true,
-    subject: subject,
-    analysis: analysis,
+    subject,
+    analysis
   });
-});
-
-module.exports = app;
+}
