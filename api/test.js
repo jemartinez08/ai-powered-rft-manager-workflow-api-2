@@ -6,7 +6,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-app.post("/", async (req, res) => {
+app.get("/", async (req, res) => {
   res.json({ message: "Test endpoint is working" });
 });
 
