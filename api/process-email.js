@@ -1,6 +1,18 @@
 import mammoth from "mammoth";
 
 export default async function handler(req, res) {
+
+  // Headers CORS
+  res.setHeader("Access-Control-Allow-Credentials", true);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // manejar preflight request
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({
       success: false,
@@ -32,7 +44,7 @@ export default async function handler(req, res) {
 
     const extractedDate = dateMatch ? dateMatch[0] : null;
 
-    console.log("Extracted Text:", text.substring(0, 500) + "..."); // mostrar solo los primeros 500 caracteres
+    console.log("Extracted Text:", text.substring(0, 500) + "...");
     console.log("Extracted Date:", extractedDate);
 
     return res.status(200).json({
@@ -44,9 +56,10 @@ export default async function handler(req, res) {
       },
       transcription: {
         date: extractedDate,
-        text: text.substring(0, 500) + "...", // mostrar solo los primeros 500 caracteres
+        text: text.substring(0, 500) + "...",
       },
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
