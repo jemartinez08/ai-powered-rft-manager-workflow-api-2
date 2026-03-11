@@ -1,5 +1,6 @@
+import mammoth from "mammoth";
+
 export default async function handler(req, res) {
-  // Solo aceptar POST
   if (req.method !== "POST") {
     return res.status(405).json({
       success: false,
@@ -8,59 +9,43 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { subject, body, image } = req.body;
+    const { subject, body, file } = req.body;
 
-    // Validación básica
-    if (!subject || !body) {
+    if (!subject || !body || !file) {
       return res.status(400).json({
         success: false,
-        error: "Missing subject or body",
+        error: "Missing subject, body or file",
       });
     }
 
-    // Verificación del attachment (opcional)
-    let imageInfo = {
-      received: false,
-      format: null,
-      sizeBytes: 0,
-    };
+    // convertir base64 → buffer
+    const buffer = Buffer.from(file, "base64");
 
-    if (image) {
-      // verificar que parece base64
-      const isBase64 = typeof image === "string" && image.length > 50;
+    // extraer texto del docx
+    const result = await mammoth.extractRawText({ buffer });
 
-      if (isBase64) {
-        const buffer = Buffer.from(image, "base64");
+    const text = result.value;
 
-        imageInfo = {
-          received: true,
-          format: "base64",
-          sizeBytes: buffer.length,
-        };
-      } else {
-        imageInfo = {
-          received: true,
-          format: "unknown",
-          sizeBytes: 0,
-        };
-      }
-    }
+    // buscar fecha en el texto
+    const dateRegex = /\b\d{1,2}\/\d{1,2}\/\d{4}\b/;
+    const dateMatch = text.match(dateRegex);
 
-    // Respuesta simulada de análisis
-    const analysis = {
-      summary: "Correo analizado correctamente",
-      priority: "High",
-      destinationEmail: "destino@empresa.com",
-    };
+    const extractedDate = dateMatch ? dateMatch[0] : null;
+
+    console.log("Extracted Text:", text.substring(0, 500) + "..."); // mostrar solo los primeros 500 caracteres
+    console.log("Extracted Date:", extractedDate);
 
     return res.status(200).json({
       success: true,
       receivedData: {
         subject,
         bodyLength: body.length,
-        image: imageInfo,
+        fileSizeBytes: buffer.length,
       },
-      analysis,
+      transcription: {
+        date: extractedDate,
+        text: text.substring(0, 500) + "...", // mostrar solo los primeros 500 caracteres
+      },
     });
   } catch (error) {
     return res.status(500).json({
