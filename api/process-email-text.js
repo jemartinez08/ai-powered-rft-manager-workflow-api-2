@@ -26,6 +26,10 @@ export default async function handler(req, res) {
       });
     }
 
+    // 🔹 EXTRAER RFT ID
+    const rftMatch = subject.match(/RFT\s*(\d+)/i);
+    const rftId = rftMatch ? rftMatch[1] : null;
+
     // ============================
     // 🔹 Prompt para el LLM
     // ============================
@@ -66,6 +70,8 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
+    console.log("LLM API Response:", data);
+
     // ============================
     // 🔹 Ajusta esto según tu API
     // ============================
@@ -101,6 +107,7 @@ export default async function handler(req, res) {
         subject,
         bodyLength: body.length,
       },
+      rft_id: rftId, // 👈 NUEVO CAMPO
       llm_response: parsedJSON,
     });
   } catch (error) {
