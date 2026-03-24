@@ -56,7 +56,7 @@ export default async function handler(req, res) {
       },
       transcription: {
         date: extractedDate,
-        text: text.substring(0, 500) + "...",
+        text: text.substring(0, 2000) + "...",
       },
     });
 
