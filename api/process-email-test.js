@@ -1,6 +1,6 @@
 import mammoth from "mammoth";
 
-import { marked } from "marked";
+const { marked } = await import("marked");
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import { json } from "body-parser";
@@ -254,7 +254,7 @@ export default async function handler(req, res) {
     console.log("Markdown preview:", markdown.slice(0, 200));
 
     const pdfBuffer = await generatePdfFromMarkdown(markdown);
-    const pdfBase64 = pdfBuffer.toString("base64");
+    const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
 
     // ---------------------------
     // 📅 FECHA
