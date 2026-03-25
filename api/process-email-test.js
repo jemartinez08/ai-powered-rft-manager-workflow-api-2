@@ -1,6 +1,5 @@
 import mammoth from "mammoth";
 
-const { marked } = await import("marked");
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import { json } from "body-parser";
@@ -172,36 +171,39 @@ export default async function handler(req, res) {
     // ---------------------------
 
     async function generatePdfFromMarkdown(markdown) {
+
+      const { marked } = await import("marked"); // ✅ aquí sí funciona
+
       const htmlContent = `
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            padding: 40px;
-            color: #222;
-          }
-          h1, h2, h3 {
-            color: #111;
-          }
-          p {
-            font-size: 14px;
-            line-height: 1.6;
-          }
-          ul {
-            margin-left: 20px;
-          }
-          strong {
-            font-weight: bold;
-          }
-        </style>
-      </head>
-      <body>
-        ${marked.parse(markdown || "<p>No content</p>")}
-      </body>
-    </html>
-  `;
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                padding: 40px;
+                color: #222;
+              }
+              h1, h2, h3 {
+                color: #111;
+              }
+              p {
+                font-size: 14px;
+                line-height: 1.6;
+              }
+              ul {
+                margin-left: 20px;
+              }
+              strong {
+                font-weight: bold;
+              }
+            </style>
+          </head>
+          <body>
+            ${marked.parse(markdown || "<p>No content</p>")}
+          </body>
+        </html>
+      `;
 
       let browser;
 
