@@ -263,7 +263,11 @@ Expected JSON format:
         interviewerData?.matched || interviewerData?.extracted || null,
       rft_id: rftId,
       llm_response: parsedJSON,
-      pdf_base64: pdfBase64,
+      pdf: {
+        fileName: `RFT_${rftId || "documento"}.pdf`,
+        contentType: "application/pdf",
+        data: pdfBase64,
+      },
     });
   } catch (error) {
     return res.status(500).json({
