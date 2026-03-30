@@ -1,3 +1,145 @@
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
+
+// ============================
+// 🔹 Helper: Normalizar texto
+// ============================
+function normalizeText(text = "") {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // quitar acentos
+    .toUpperCase()
+    .trim();
+}
+
+// ============================
+// 🔹 Diccionario entrevistadores
+// ============================
+const interviewersDict = [
+  {
+    name: "Victor Hugo Ugalde Ruiz",
+    email: "alguien@example.com",
+    key: "VHUR",
+  },
+  {
+    name: "Jesus Emmanuel Martinez Garcia",
+    email: "je.martinez@softtek.com",
+    key: "JEMG",
+  },
+  {
+    name: "Leonel Navarro Segura",
+    email: "leonel.navarro@softtek.com",
+    key: "LNS",
+  },
+];
+
+// ============================
+// 🔹 Buscar interviewer
+// ============================
+function findInterviewer(body) {
+  const match = body.match(/Interviewer:\s*([A-Z]+)\s*-\s*([^\n\r]+)/i);
+
+  if (!match) return null;
+
+  const keyRaw = match[1];
+  const nameRaw = match[2];
+
+  const key = normalizeText(keyRaw);
+  const name = normalizeText(nameRaw);
+
+  const found = interviewersDict.find(
+    (i) => normalizeText(i.key) === key || normalizeText(i.name) === name,
+  );
+
+  return {
+    extracted: {
+      key,
+      name,
+    },
+    matched: found || null,
+  };
+}
+
+// ============================
+// 🔹 PDF desde markdown
+// ============================
+async function generatePdfFromMarkdown(markdown) {
+  const { marked } = await import("marked");
+
+  const htmlContent = `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            color: #222;
+          }
+          h1, h2, h3 {
+            color: #111;
+          }
+          p {
+            font-size: 14px;
+            line-height: 1.6;
+          }
+          ul {
+            margin-left: 20px;
+          }
+          strong {
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        ${marked.parse(markdown || "<p>No content</p>")}
+      </body>
+    </html>
+  `;
+
+  let browser;
+
+  if (process.env.VERCEL) {
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+  } else {
+    const puppeteerLocal = await import("puppeteer");
+
+    browser = await puppeteerLocal.default.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+      ],
+    });
+  }
+
+  try {
+    const page = await browser.newPage();
+
+    await page.setContent(htmlContent, {
+      waitUntil: "networkidle0",
+    });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+    });
+
+    return pdfBuffer;
+  } finally {
+    await browser.close();
+  }
+}
+
+// ============================
+// 🔹 Handler principal
+// ============================
 export default async function handler(req, res) {
   // CORS
   res.setHeader("Access-Control-Allow-Credentials", true);
@@ -26,33 +168,43 @@ export default async function handler(req, res) {
       });
     }
 
+    // ============================
     // 🔹 EXTRAER RFT ID
+    // ============================
     const rftMatch = subject.match(/RFT\s*(\d+)/i);
     const rftId = rftMatch ? rftMatch[1] : null;
 
     // ============================
-    // 🔹 Prompt para el LLM
+    // 🔹 EXTRAER INTERVIEWER
+    // ============================
+    const interviewerData = findInterviewer(body);
+
+    // ============================
+    // 🔹 PROMPT LLM (nuevo)
     // ============================
     const message = `
-        Return ONLY valid JSON. No explanations.
+Return ONLY valid JSON. No explanations.
 
-        Email Subject:
-        ${subject}
+Email Subject:
+${subject}
 
-        Email Body:
-        ${body}
+Email Body:
+${body}
 
-        Expected JSON format:
-        {
-        "category": "",
-        "priority": "",
-        "summary": "",
-        "action_required": true
-        }
-    `;
+Expected JSON format:
+{
+  "role": "",
+  "specialty": "",
+  "competency_level": "",
+  "role_taxonomy": "",
+  "responsible": "",
+  "profile_bullets": [],
+  "recommended_questions": "Markdown formatted interview questions"
+}
+`;
 
     // ============================
-    // 🔹 Llamada a TU API LLM
+    // 🔹 LLM CALL
     // ============================
     const response = await fetch(process.env.LLM_API_URL, {
       method: "POST",
@@ -62,44 +214,44 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         project_id: process.env.LLM_PROJECT_ID,
-        // conversation_id: process.env.LLM_CONVERSATION_ID,
-        message: message,
+        message,
         enable_memory: true,
       }),
     });
 
     const data = await response.json();
 
-    console.log("LLM API Response:", data);
+    const llmText = data?.message || data?.response || data?.output || "";
 
     // ============================
-    // 🔹 Ajusta esto según tu API
-    // ============================
-    const llmText =
-      data?.message || // si tu API regresa { message: "..." }
-      data?.response || // fallback común
-      data?.output || // otro posible formato
-      "";
-
-    // ============================
-    // 🔹 Parseo robusto de JSON
+    // 🔹 PARSE JSON
     // ============================
     let parsedJSON;
 
     try {
       parsedJSON = JSON.parse(llmText);
-    } catch (err) {
+    } catch {
       const jsonMatch = llmText.match(/\{[\s\S]*\}/);
-
       if (jsonMatch) {
         parsedJSON = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error("LLM did not return valid JSON");
+        throw new Error("Invalid JSON from LLM");
       }
     }
 
     // ============================
-    // 🔹 Respuesta final
+    // 🔹 GENERAR PDF
+    // ============================
+    const markdown = parsedJSON.recommended_questions || "";
+
+    const pdfBuffer = await generatePdfFromMarkdown(markdown);
+    const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
+
+    // eliminamos markdown del response
+    delete parsedJSON.recommended_questions;
+
+    // ============================
+    // 🔹 RESPUESTA FINAL
     // ============================
     return res.status(200).json({
       success: true,
@@ -107,8 +259,11 @@ export default async function handler(req, res) {
         subject,
         bodyLength: body.length,
       },
-      rft_id: rftId, // 👈 NUEVO CAMPO
+      interviewer:
+        interviewerData?.matched || interviewerData?.extracted || null,
+      rft_id: rftId,
       llm_response: parsedJSON,
+      pdf_base64: pdfBase64,
     });
   } catch (error) {
     return res.status(500).json({
