@@ -361,9 +361,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { subject, rawBody } = req.body;
+    const { subject, body } = req.body;
 
-    body = rawBody.slice(1500); // limitamos a 1500 chars para evitar problemas con LLM
+    processedBody = body.substring(500); // limitamos a 1500 chars para evitar problemas con LLM
 
     if (!subject || !body) {
       return res.status(400).json({
@@ -381,7 +381,7 @@ export default async function handler(req, res) {
     // ============================
     // 🔹 EXTRAER INTERVIEWER
     // ============================
-    const interviewerData = findInterviewer(body);
+    const interviewerData = findInterviewer(processedBody);
 
     // ============================
     // 🔹 PROMPT LLM (nuevo)
@@ -399,7 +399,7 @@ export default async function handler(req, res) {
     ${subject}
 
     Email Body:
-    ${body}
+    ${processedBody}
 
     Rules:
     - Extract the role information with high accuracy
