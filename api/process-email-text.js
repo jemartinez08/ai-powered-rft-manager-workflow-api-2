@@ -363,7 +363,7 @@ export default async function handler(req, res) {
   try {
     const { subject, rawBody } = req.body;
 
-    body = rawBody.slice(500);
+    body = rawBody.slice(1500); // limitamos a 1500 chars para evitar problemas con LLM
 
     if (!subject || !body) {
       return res.status(400).json({
