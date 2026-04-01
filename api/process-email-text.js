@@ -228,10 +228,21 @@ const interviewersDict = [
 ];
 
 // ============================
+// 🔹 Normalizar body
+// ============================
+function normalizeBody(text) {
+  return text
+    .replace(/\u00A0/g, " ") // NBSP → espacio normal
+    .replace(/[–—]/g, "-"); // dashes raros → dash normal
+}
+
+// ============================
 // 🔹 Buscar interviewer
 // ============================
 function findInterviewer(body) {
-  const match = body.match(/Interviewer:\s*([A-Z]+)\s*-\s*([^\n\r]+)/i);
+  const cleanBody = normalizeBody(body);
+
+  const match = cleanBody.match(/Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+)/i);
 
   if (!match) return null;
 
@@ -246,10 +257,7 @@ function findInterviewer(body) {
   );
 
   return {
-    extracted: {
-      key,
-      name,
-    },
+    extracted: { key, name },
     matched: found || null,
   };
 }
