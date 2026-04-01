@@ -4,6 +4,14 @@ import puppeteer from "puppeteer-core";
 // ============================
 // 🔹 Helper: Normalizar texto
 // ============================
+function normalizeText(text = "") {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // quitar acentos
+    .toUpperCase()
+    .trim();
+}
+
 // ============================
 // 🔹 Diccionario entrevistadores
 // ============================
@@ -232,7 +240,9 @@ function normalizeBody(text) {
 // 🔹 Buscar interviewer
 // ============================
 function findInterviewer(body) {
-  const match = body.match(/Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+)/i);
+  const cleanBody = normalizeBody(body);
+
+  const match = cleanBody.match(/Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+)/i);
 
   if (!match) return null;
 
@@ -353,8 +363,6 @@ export default async function handler(req, res) {
   try {
     const { subject, body } = req.body;
 
-    processedBody = body.substring(500); // limitamos a 1500 chars para evitar problemas con LLM
-
     if (!subject || !body) {
       return res.status(400).json({
         success: false,
@@ -371,7 +379,7 @@ export default async function handler(req, res) {
     // ============================
     // 🔹 EXTRAER INTERVIEWER
     // ============================
-    const interviewerData = findInterviewer(processedBody);
+    const interviewerData = findInterviewer(body);
 
     // ============================
     // 🔹 PROMPT LLM (nuevo)
@@ -389,7 +397,7 @@ export default async function handler(req, res) {
     ${subject}
 
     Email Body:
-    ${processedBody}
+    ${body}
 
     Rules:
     - Extract the role information with high accuracy
