@@ -4,14 +4,6 @@ import puppeteer from "puppeteer-core";
 // ============================
 // 🔹 Helper: Normalizar texto
 // ============================
-function normalizeText(text = "") {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // quitar acentos
-    .toUpperCase()
-    .trim();
-}
-
 // ============================
 // 🔹 Diccionario entrevistadores
 // ============================
@@ -240,9 +232,7 @@ function normalizeBody(text) {
 // 🔹 Buscar interviewer
 // ============================
 function findInterviewer(body) {
-  const cleanBody = normalizeBody(body);
-
-  const match = cleanBody.match(/Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+)/i);
+  const match = body.match(/Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+)/i);
 
   if (!match) return null;
 
