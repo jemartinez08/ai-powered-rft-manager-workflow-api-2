@@ -361,7 +361,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { subject, body } = req.body;
+    const { subject, rawBody } = req.body;
+
+    body = rawBody.slice(500);
 
     if (!subject || !body) {
       return res.status(400).json({
