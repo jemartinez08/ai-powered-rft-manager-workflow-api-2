@@ -225,6 +225,12 @@ const interviewersDict = [
     email: "shabnam.panda@softtek.com",
     key: "SHP1",
   },
+  {
+    // SHP1	Shabnam Panda	shabnam.panda@softtek.com
+    name: "LIRM1 - Laura Isabel Ramírez Maldonado",
+    email: "laura.ramirez@softtek.com",
+    key: "LIRM1",
+  },
 ];
 
 // ============================
