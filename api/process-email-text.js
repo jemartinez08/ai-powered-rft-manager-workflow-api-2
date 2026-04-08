@@ -421,9 +421,15 @@ export default async function handler(req, res) {
       "competency_level": "",
       "role_taxonomy": "",
       "responsible": "",
-      "profile_bullets": [],
-      "recommended_questions": [],
-      "recommended_questions_markdown": ""
+      "profile_bullets": [
+        "",
+        ""
+      ],
+      "recommended_questions": [
+        "Question: ... | Validates: ... | Strong answer: ... | Red flags: ...",
+        "Question: ... | Validates: ... | Strong answer: ... | Red flags: ..."
+      ],
+      "recommended_questions_markdown": "# Interview Questions\n\n## Technical\n- ...\n\n## Behavioral\n- ..."
     }
     `;
 
@@ -459,6 +465,7 @@ export default async function handler(req, res) {
       if (jsonMatch) {
         parsedJSON = JSON.parse(jsonMatch[0]);
       } else {
+        console.error("LLM response parsing failed. Raw response:", llmText);
         throw new Error("Invalid JSON from LLM");
       }
     }
@@ -489,11 +496,11 @@ export default async function handler(req, res) {
         interviewerData?.matched || interviewerData?.extracted || null,
       rft_id: rftId,
       llm_response: parsedJSON,
-      pdf: {
-        fileName: `RFT_${rftId || "documento"}.pdf`,
-        contentType: "application/pdf",
-        data: pdfBase64,
-      },
+      // pdf: {
+      //   fileName: `RFT_${rftId || "documento"}.pdf`,
+      //   contentType: "application/pdf",
+      //   data: pdfBase64,
+      // },
     });
   } catch (error) {
     return res.status(500).json({
