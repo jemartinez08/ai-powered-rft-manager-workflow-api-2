@@ -221,7 +221,7 @@ export default async function handler(req, res) {
       },
 
       pdf: {
-        fileName: "resultado.pdf",
+        fileName: `Interview AI Analysis - RFT - ${rftNumber || "documento"}.pdf`,
         contentType: "application/pdf",
         data: pdfBase64,
       },
