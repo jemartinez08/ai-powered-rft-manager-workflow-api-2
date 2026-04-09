@@ -46,32 +46,29 @@ export default async function handler(req, res) {
 
     // Candidate
     const candidateMatch = normalizedBody.match(
-      /Candidate(?:\s*name)?\s*:\s*([^\n\r]+)/i
+      /Candidate(?:\s*name)?\s*:\s*([^\n\r]+)/i,
     );
-    const candidateName = candidateMatch
-      ? candidateMatch[1].trim()
-      : null;
+    const candidateName = candidateMatch ? candidateMatch[1].trim() : null;
+
+    // Role (NUEVO)
+    const roleMatch = normalizedBody.match(/Role\s*:\s*([^\n\r]+)/i);
+    const role = roleMatch ? roleMatch[1].trim() : null;
 
     // Recommendation
     const recommendationMatch = normalizedBody.match(
-      /Recommendation\s*:\s*([^\n\r]+)/i
+      /Recommendation\s*:\s*([^\n\r]+)/i,
     );
     const recommendation = recommendationMatch
       ? recommendationMatch[1].trim()
       : null;
 
-    // ---------------------------
-    // 🧠 NOTES (NUEVO - MULTILINEA ROBUSTO)
-    // ---------------------------
+    // Notes
     const notesMatch = normalizedBody.match(
-      /Notas?(?:\s+u\s+observaciones.*)?\s*:\s*([\s\S]*)/i
+      /Notas?(?:\s+u\s+observaciones.*)?\s*:\s*([\s\S]*)/i,
     );
 
-    let interviewerNotes = notesMatch
-      ? notesMatch[1].trim()
-      : null;
+    let interviewerNotes = notesMatch ? notesMatch[1].trim() : null;
 
-    // Limpieza opcional para evitar capturar otros campos futuros
     if (interviewerNotes) {
       interviewerNotes = interviewerNotes
         .split(/\n[A-Z][a-zA-Z\s]+:/)[0]
@@ -101,7 +98,7 @@ export default async function handler(req, res) {
     // ---------------------------
 
     const segments = text.split(
-      /(?=[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?\s+\d{1,2}:\d{2})/
+      /(?=[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?\s+\d{1,2}:\d{2})/,
     );
 
     const conversation = [];
@@ -119,7 +116,7 @@ export default async function handler(req, res) {
 
     for (let segment of segments) {
       const match = segment.match(
-        /^([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)\s+(\d{1,2}:\d{2})(.*)$/s
+        /^([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)\s+(\d{1,2}:\d{2})(.*)$/s,
       );
 
       if (!match) continue;
@@ -143,8 +140,35 @@ export default async function handler(req, res) {
       .join(" ");
 
     // ---------------------------
-    // 🤖 LLM
+    // 🤖 LLM (MEJORADO)
     // ---------------------------
+
+    function smartTrim(text, maxLength) {
+      if (text.length <= maxLength) return text;
+
+      let trimmed = text.substring(0, maxLength);
+
+      // corta en último punto o salto de línea
+      const lastBreak = Math.max(
+        trimmed.lastIndexOf("."),
+        trimmed.lastIndexOf("\n"),
+      );
+
+      if (lastBreak > 0) {
+        return trimmed.substring(0, lastBreak);
+      }
+
+      return trimmed;
+    }
+
+    const trimmedTranscript = smartTrim(cleanText, 9000);
+
+    const llmPayload = `
+    Role: ${role || "Unknown"}
+
+    Transcript:
+    ${trimmedTranscript}
+    `;
 
     const llmResponse = await fetch(process.env.LLM_API_URL, {
       method: "POST",
@@ -154,11 +178,21 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         project_id: process.env.LLM_PROJECT_ID_INTERVIEWS,
-        message: cleanText,
+        message: JSON.stringify(llmPayload),
       }),
     });
 
-    const llmData = await llmResponse.json();
+    const llmRaw = await llmResponse.json();
+
+    console.log("LLM RAW RESPONSE:", llmRaw);
+
+    // 🔥 Parse seguro del JSON del LLM
+    let llmParsed;
+    try {
+      llmParsed = JSON.parse(llmRaw.response);
+    } catch (e) {
+      throw new Error("LLM did not return valid JSON");
+    }
 
     // ---------------------------
     // 📁 PDF
@@ -199,9 +233,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const pdfBuffer = await generatePdfFromMarkdown(
-      llmData.response
-    );
+    const pdfBuffer = await generatePdfFromMarkdown(llmParsed.markdownText);
 
     const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
 
@@ -216,7 +248,7 @@ export default async function handler(req, res) {
         rftNumber,
         candidateName,
         recommendation,
-        interviewerNotes, // 👈 NUEVO CAMPO
+        interviewerNotes,
         isValidForWorkflow,
       },
 
@@ -226,7 +258,12 @@ export default async function handler(req, res) {
         data: pdfBase64,
       },
 
-      llm: llmData,
+      llm: {
+        InterviewRole: llmParsed.InterviewRole,
+        overalScore: llmParsed.overalScore,
+        justification: llmParsed.justification,
+        ai_recommendation: llmParsed.ai_recommendation,
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -235,5 +272,4 @@ export default async function handler(req, res) {
       details: error.message,
     });
   }
-  // end of flow
 }
