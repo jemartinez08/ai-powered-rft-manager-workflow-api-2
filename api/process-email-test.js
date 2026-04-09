@@ -29,26 +29,54 @@ export default async function handler(req, res) {
     }
 
     // ---------------------------
+    // 🧠 NORMALIZACIÓN BODY
+    // ---------------------------
+    const normalizedBody = body
+      .replace(/\r\n/g, "\n")
+      .replace(/\t/g, " ")
+      .trim();
+
+    // ---------------------------
     // 🧠 REGEX PARSING EMAIL
     // ---------------------------
 
-    // RFT ID (ej: RFT 86534)
-    const rftMatch = subject.match(/RFT\s*(\d+)/i);
+    // RFT ID
+    const rftMatch = subject.match(/RFT[\s\-_:]*?(\d{4,})/i);
     const rftNumber = rftMatch ? rftMatch[1] : null;
 
-    // Candidate Name
-    const candidateMatch = body.match(/Candidate name:\s*(.+)/i);
+    // Candidate
+    const candidateMatch = normalizedBody.match(
+      /Candidate(?:\s*name)?\s*:\s*([^\n\r]+)/i
+    );
     const candidateName = candidateMatch
       ? candidateMatch[1].trim()
       : null;
 
     // Recommendation
-    const recommendationMatch = body.match(
-      /Interviewer recommendation:\s*"?(.+?)"?$/im
+    const recommendationMatch = normalizedBody.match(
+      /Recommendation\s*:\s*([^\n\r]+)/i
     );
     const recommendation = recommendationMatch
       ? recommendationMatch[1].trim()
       : null;
+
+    // ---------------------------
+    // 🧠 NOTES (NUEVO - MULTILINEA ROBUSTO)
+    // ---------------------------
+    const notesMatch = normalizedBody.match(
+      /Notas?(?:\s+u\s+observaciones.*)?\s*:\s*([\s\S]*)/i
+    );
+
+    let interviewerNotes = notesMatch
+      ? notesMatch[1].trim()
+      : null;
+
+    // Limpieza opcional para evitar capturar otros campos futuros
+    if (interviewerNotes) {
+      interviewerNotes = interviewerNotes
+        .split(/\n[A-Z][a-zA-Z\s]+:/)[0]
+        .trim();
+    }
 
     const isValidForWorkflow =
       !!rftNumber && !!candidateName && !!recommendation;
@@ -188,6 +216,7 @@ export default async function handler(req, res) {
         rftNumber,
         candidateName,
         recommendation,
+        interviewerNotes, // 👈 NUEVO CAMPO
         isValidForWorkflow,
       },
 
