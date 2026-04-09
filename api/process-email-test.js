@@ -194,6 +194,13 @@ export default async function handler(req, res) {
       throw new Error("LLM did not return valid JSON");
     }
 
+    const safeLLM = {
+      InterviewRole: llmParsed.InterviewRole || role || "Unknown",
+      overalScore: llmParsed.overalScore || "0",
+      justification: llmParsed.justification || "No justification provided",
+      ai_recommendation: llmParsed.ai_recommendation || "No Hire",
+    };
+
     // ---------------------------
     // 📁 PDF
     // ---------------------------
@@ -258,12 +265,7 @@ export default async function handler(req, res) {
         data: pdfBase64,
       },
 
-      llm: {
-        InterviewRole: llmParsed.InterviewRole,
-        overalScore: llmParsed.overalScore,
-        justification: llmParsed.justification,
-        ai_recommendation: llmParsed.ai_recommendation,
-      },
+      llm: safeLLM,
     });
   } catch (error) {
     return res.status(500).json({
