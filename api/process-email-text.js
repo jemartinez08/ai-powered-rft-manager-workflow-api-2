@@ -36,7 +36,9 @@ async function getInterviewers() {
 async function findInterviewer(body) {
   const cleanBody = normalizeBody(body);
 
-  const match = cleanBody.match(/Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+)/i);
+  const match = cleanBody.match(
+    /Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+?)(?=\s+Responsible:|\n|$)/i,
+  );
 
   if (!match) return null;
 
@@ -59,12 +61,8 @@ async function findInterviewer(body) {
     (i) => normalizeText(i.key) === key || normalizeText(i.name) === name,
   );
 
-  console.log("Interviewer Found:", found);
-
-  console.log("Extracted Interviewer:", { key, name });
-
   return {
-    // extracted: { key, name },
+    extracted: { key, name },
     matched: found || null,
   };
 }
@@ -186,7 +184,7 @@ export default async function handler(req, res) {
     // ============================
     // 🔹 EXTRAER INTERVIEWER
     // ============================
-    const interviewerData = findInterviewer(body);
+    const interviewerData = await findInterviewer(body);
 
     console.log("Interviewer Data:", interviewerData);
 
@@ -295,8 +293,7 @@ export default async function handler(req, res) {
         subject,
         bodyLength: body.length,
       },
-      interviewer:
-        interviewerData?.matched || null,
+      interviewer: interviewerData?.matched || null,
       rft_id: rftId,
       llm_response: parsedJSON,
       // pdf: {
