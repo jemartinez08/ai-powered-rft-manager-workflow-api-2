@@ -131,7 +131,7 @@ const interviewersDict = [
   },
   {
     // LALH 	Luis Alberto Leyva 	luisa.leyva@softtek.com
-    name: "Luis Alberto Leyva",
+    name: "Luis Alberto Leyva Hernandez",
     email: "luisa.leyva@softtek.com",
     key: "LALH",
   },
