@@ -1,5 +1,6 @@
 import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
+const axios = require("axios");
 
 // ============================
 // 🔹 Helper: Normalizar texto
@@ -21,13 +22,10 @@ function normalizeBody(text) {
     .replace(/[–—]/g, "-"); // dashes raros → dash normal
 }
 
-const axios = require("axios");
-
 //==============================
 // Get Interviewers from SharePoint List
 // =============================
 async function getInterviewers() {
-  console.log("URL", process.env.FLOW_URL);
   const response = await axios.post(process.env.FLOW_URL);
   return response.data;
 }
@@ -51,18 +49,22 @@ async function findInterviewer(body) {
   // 🔥 Obtener lista dinámica desde Power Automate
   const response = await getInterviewers();
 
-  if (!response?.success || !Array.isArray(response.interviewers)) {
+  if (!Array.isArray(response)) {
     throw new Error("Invalid response from interviewers service");
   }
 
-  const interviewersList = response.interviewers;
+  const interviewersList = response;
 
   const found = interviewersList.find(
     (i) => normalizeText(i.key) === key || normalizeText(i.name) === name,
   );
 
+  console.log("Interviewer Found:", found);
+
+  console.log("Extracted Interviewer:", { key, name });
+
   return {
-    extracted: { key, name },
+    // extracted: { key, name },
     matched: found || null,
   };
 }
@@ -186,6 +188,8 @@ export default async function handler(req, res) {
     // ============================
     const interviewerData = findInterviewer(body);
 
+    console.log("Interviewer Data:", interviewerData);
+
     // ============================
     // 🔹 PROMPT LLM (nuevo)
     // ============================
@@ -292,7 +296,7 @@ export default async function handler(req, res) {
         bodyLength: body.length,
       },
       interviewer:
-        interviewerData?.matched || interviewerData?.extracted || null,
+        interviewerData?.matched || null,
       rft_id: rftId,
       llm_response: parsedJSON,
       // pdf: {
