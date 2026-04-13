@@ -33,22 +33,32 @@ async function getInterviewers() {
 // ============================
 // 🔹 Buscar interviewer
 // ============================
-async function findInterviewer(body) {
-  const cleanBody = normalizeBody(body);
-
-  const match = cleanBody.match(
-    /Interviewer:\s*([A-Z0-9]+)\s*-\s*([^\n\r]+?)(?=\s+Responsible:|\n|$)/i,
+function extractPerson(cleanBody, label) {
+  const regex = new RegExp(
+    `${label}:\\s*([A-Z0-9]+)\\s*-\\s*([^\\n\\r]+?)(?=\\s+\\w+:|\\n|$)`,
+    "i",
   );
+
+  const match = cleanBody.match(regex);
 
   if (!match) return null;
 
-  const keyRaw = match[1];
-  const nameRaw = match[2];
+  return {
+    key: normalizeText(match[1]),
+    name: normalizeText(match[2]),
+  };
+}
 
-  const key = normalizeText(keyRaw);
-  const name = normalizeText(nameRaw);
+async function findPeople(body) {
+  const cleanBody = normalizeBody(body);
 
-  // 🔥 Obtener lista dinámica desde Power Automate
+  // 🔹 Extraer ambos
+  const interviewerExtracted = extractPerson(cleanBody, "Interviewer");
+  const responsibleExtracted = extractPerson(cleanBody, "Responsible");
+
+  if (!interviewerExtracted && !responsibleExtracted) return null;
+
+  // 🔥 Obtener lista dinámica
   const response = await getInterviewers();
 
   if (!Array.isArray(response)) {
@@ -57,13 +67,28 @@ async function findInterviewer(body) {
 
   const interviewersList = response;
 
-  const found = interviewersList.find(
-    (i) => normalizeText(i.key) === key || normalizeText(i.name) === name,
-  );
+  // 🔹 Función de matching reutilizable
+  const matchPerson = (person) => {
+    if (!person) return null;
+
+    return (
+      interviewersList.find(
+        (i) =>
+          normalizeText(i.key) === person.key ||
+          normalizeText(i.name) === person.name,
+      ) || null
+    );
+  };
 
   return {
-    extracted: { key, name },
-    matched: found || null,
+    interviewer: {
+      extracted: interviewerExtracted,
+      matched: matchPerson(interviewerExtracted),
+    },
+    responsible: {
+      extracted: responsibleExtracted,
+      matched: matchPerson(responsibleExtracted),
+    },
   };
 }
 
@@ -184,7 +209,7 @@ export default async function handler(req, res) {
     // ============================
     // 🔹 EXTRAER INTERVIEWER
     // ============================
-    const interviewerData = await findInterviewer(body);
+    const interviewerData = await findPeople(body);
 
     console.log("Interviewer Data:", interviewerData);
 
@@ -293,7 +318,8 @@ export default async function handler(req, res) {
         subject,
         bodyLength: body.length,
       },
-      interviewer: interviewerData?.matched || null,
+      interviewer: interviewerData.interviewer || null,
+      responsible: interviewerData.responsible || null,
       rft_id: rftId,
       llm_response: parsedJSON,
       // pdf: {
