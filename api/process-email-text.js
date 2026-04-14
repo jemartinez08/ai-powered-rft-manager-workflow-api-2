@@ -211,8 +211,6 @@ export default async function handler(req, res) {
     // ============================
     const interviewerData = await findPeople(body);
 
-    console.log("Interviewer Data:", interviewerData);
-
     // ============================
     // 🔹 PROMPT LLM (nuevo)
     // ============================
