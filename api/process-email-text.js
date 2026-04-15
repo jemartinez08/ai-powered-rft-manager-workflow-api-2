@@ -31,6 +31,131 @@ async function getInterviewers() {
 }
 
 // ============================
+// 🔹 Seleccionar al interviewer utilizando AI
+// ============================
+async function selectInterviewer(interviewers, jobDescription) {
+  if (!Array.isArray(interviewers) || interviewers.length === 0) {
+    throw new Error("Interviewers array is required");
+  }
+
+  if (!jobDescription) {
+    throw new Error("Job description is required");
+  }
+
+  // ============================
+  // 🔹 STEP 1: SANITIZE DATA
+  // ============================
+  const sanitizedInterviewers = interviewers.map((item, index) => ({
+    id: `interviewer${index + 1}`,
+    role: item.role,
+    specialty: item.specialty,
+  }));
+
+  // ============================
+  // 🔹 STEP 2: CREATE SAFE MAP
+  // ============================
+  const interviewerMap = {};
+  sanitizedInterviewers.forEach((item, index) => {
+    interviewerMap[item.id.toLowerCase()] = interviewers[index];
+  });
+
+  // ============================
+  // 🔹 STEP 3: BUILD PROMPT
+  // ============================
+  const systemPrompt = `
+  You are an AI specialized in selecting the most suitable technical interviewer.
+
+  STRICT OUTPUT:
+  {
+    "recommended_interviewer": "interviewerX"
+  }
+
+  Return ONLY JSON.
+  `;
+
+  const interviewersText = sanitizedInterviewers
+    .map((i) => `${i.id}:\n- role: ${i.role}\n- specialty: ${i.specialty}`)
+    .join("\n\n");
+
+  const message = `
+  ${systemPrompt}
+
+  INTERVIEWERS:
+  ${interviewersText}
+
+  JOB DESCRIPTION:
+  ${jobDescription}
+  `;
+
+  // ============================
+  // 🔹 STEP 4: CALL LLM
+  // ============================
+  const response = await fetch(process.env.LLM_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.LLM_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      project_id: "69b45bc46c8418ec85cbac46",
+      message,
+      enable_memory: true,
+    }),
+  });
+
+  const data = await response.json();
+  const llmText = data?.message || data?.response || data?.output || "";
+
+  // ============================
+  // 🔹 STEP 5: PARSE JSON
+  // ============================
+  let parsedJSON;
+
+  try {
+    parsedJSON = JSON.parse(llmText);
+  } catch {
+    const jsonMatch = llmText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      parsedJSON = JSON.parse(jsonMatch[0]);
+    } else {
+      console.error("LLM response parsing failed:", llmText);
+      throw new Error("Invalid JSON from LLM");
+    }
+  }
+
+  // ============================
+  // 🔹 STEP 6: NORMALIZE ID
+  // ============================
+  let selectedId = parsedJSON?.recommended_interviewer;
+
+  if (!selectedId) {
+    throw new Error("LLM did not return recommended_interviewer");
+  }
+
+  // Normalización fuerte
+  selectedId = selectedId
+    .toLowerCase()
+    .replace(/\s+/g, "") // quita espacios
+    .replace(/[^a-z0-9]/g, ""); // quita símbolos
+
+  // ============================
+  // 🔹 STEP 7: MATCH
+  // ============================
+  const selectedInterviewer = interviewerMap[selectedId];
+
+  if (!selectedInterviewer) {
+    console.error("Invalid ID from LLM:", selectedId);
+    console.error("Available IDs:", Object.keys(interviewerMap));
+    throw new Error("LLM returned an unknown interviewer");
+  }
+
+  // ============================
+  // 🔹 STEP 8: RETURN ORIGINAL OBJECT
+  // ============================
+  return selectedInterviewer;
+}
+
+// ============================
 // 🔹 Buscar interviewer
 // ============================
 function extractPerson(cleanBody, label) {
@@ -52,9 +177,12 @@ function extractPerson(cleanBody, label) {
 async function findPeople(body) {
   const cleanBody = normalizeBody(body);
 
+  const interviewersFinalList = [];
+
   // 🔹 Extraer ambos
   const interviewerExtracted = extractPerson(cleanBody, "Interviewer");
   const responsibleExtracted = extractPerson(cleanBody, "Responsible");
+  const interviewer2Extracted = extractPerson(cleanBody, "Interviewer2");
 
   if (!interviewerExtracted && !responsibleExtracted) return null;
 
@@ -80,11 +208,71 @@ async function findPeople(body) {
     );
   };
 
+  let haveFoundIUnterviewer = true;
+
+  if (interviewerExtracted && !interviewer2Extracted) {
+    const matchInterviewer = matchPerson(interviewerExtracted);
+    if (matchInterviewer) {
+      interviewersFinalList.push({
+        extracted: interviewerExtracted,
+        matched: matchInterviewer,
+      });
+
+      haveFoundIUnterviewer = true;
+    } else {
+      haveFoundIUnterviewer = false;
+    }
+  } else if (interviewerExtracted && interviewer2Extracted) {
+    // Buscamos entrevistadores encontrados en la lista
+    const matchInterviewer = matchPerson(interviewerExtracted);
+    const matchInterviewer2 = matchPerson(interviewer2Extracted);
+
+    if (matchInterviewer || matchInterviewer2) {
+      interviewersFinalList.push({
+        extracted: interviewerExtracted,
+        matched: matchInterviewer,
+      });
+      interviewersFinalList.push({
+        extracted: interviewer2Extracted,
+        matched: matchInterviewer2,
+      });
+
+      haveFoundIUnterviewer = true;
+    } else {
+      // Definimos que no se encontro interviewer, para hacer peticion al llm
+      haveFoundIUnterviewer = true;
+    }
+  }
+
+  if (haveFoundIUnterviewer) {
+    console.log(haveFoundIUnterviewer);
+    console.log("No preguntamos a la IA por entrevistador.....");
+  } else {
+    const aiSelectedInterviewer = await selectInterviewer(
+      interviewersList,
+      body,
+    );
+    interviewersFinalList.push({
+      extracted: null,
+      matched: aiSelectedInterviewer,
+    });
+  }
+
+  const emails = interviewersFinalList
+    .map((i) => i?.matched?.email?.trim())
+    .filter(Boolean);
+
+  const uniqueEmails = [...new Set(emails)];
+
+  console.log("Interviewer emails:", uniqueEmails);
+
   return {
-    interviewer: {
-      extracted: interviewerExtracted,
-      matched: matchPerson(interviewerExtracted),
-    },
+    interviewer_emails: uniqueEmails,
+    interviewer_emails_string: uniqueEmails.join(";"),
+
+    interviewer:
+      interviewersFinalList.length > 0 ? interviewersFinalList : null,
+
     responsible: {
       extracted: responsibleExtracted,
       matched: matchPerson(responsibleExtracted),
@@ -316,7 +504,7 @@ export default async function handler(req, res) {
         subject,
         bodyLength: body.length,
       },
-      interviewer: interviewerData.interviewer || null,
+      interviewers: interviewerData || null,
       responsible: interviewerData.responsible || null,
       rft_id: rftId,
       llm_response: parsedJSON,
