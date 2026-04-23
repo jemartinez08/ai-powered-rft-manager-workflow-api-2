@@ -246,7 +246,6 @@ async function findPeople(body) {
 
   if (haveFoundIUnterviewer) {
     console.log(haveFoundIUnterviewer);
-    console.log("No preguntamos a la IA por entrevistador.....");
   } else {
     const aiSelectedInterviewer = await selectInterviewer(
       interviewersList,
@@ -262,13 +261,20 @@ async function findPeople(body) {
     .map((i) => i?.matched?.email?.trim())
     .filter(Boolean);
 
-  const uniqueEmails = [...new Set(emails)];
+  const names = interviewersFinalList
+    .map((i) => i?.matched?.name?.trim())
+    .filter(Boolean);
 
-  console.log("Interviewer emails:", uniqueEmails);
+  console.log(emails);
+
+  const uniqueEmails = [...new Set(emails)];
+  const uniqueNames = [...new Set(names)];
 
   return {
     interviewer_emails: uniqueEmails,
     interviewer_emails_string: uniqueEmails.join(";"),
+    interviewer_names: uniqueNames,
+    interviewer_names_string: uniqueNames.join(", "),
 
     interviewer:
       interviewersFinalList.length > 0 ? interviewersFinalList : null,
@@ -403,7 +409,7 @@ export default async function handler(req, res) {
     // 🔹 PROMPT LLM (nuevo)
     // ============================
     const message = `
-    Return ONLY valid JSON. No explanations.
+    Return ONLY valid JSON. No explanations. No extra text before or after.
 
     You are an expert technical recruiter assistant.
 
@@ -417,16 +423,59 @@ export default async function handler(req, res) {
     Email Body:
     ${body}
 
-    Rules:
-    - Extract the role information with high accuracy
-    - "profile_bullets" must contain concise bullet points
-    - If English level is mentioned, include it as a bullet
-    - "recommended_questions" MUST be an array of strings (plain text)
-    - "recommended_questions_markdown" MUST be clean Markdown
-    - Include both technical and behavioral questions
-    - Do NOT include any text outside the JSON
+    STRICT RULES:
+    - Output MUST be valid JSON (RFC 8259 compliant)
+    - Do NOT truncate the response
+    - Do NOT leave trailing commas
+    - All strings MUST use double quotes
+    - Escape quotes using \\" if needed
+    - Do NOT include text outside JSON
 
-    Expected JSON format:
+    EXTRACTION RULES:
+    - Extract role with high accuracy
+    - Extract specialty, competency_level, role_taxonomy
+    - responsible must be concise (1–2 lines max)
+
+    PROFILE BULLETS:
+    - Must be concise
+    - Include English level if present
+
+    RECOMMENDED QUESTIONS (CRITICAL):
+    - MUST be a SINGLE OBJECT (NOT an array)
+    - MUST contain EXACTLY these keys:
+      question1, question2, question3, question4, question5
+
+    - EACH key MUST map to an object:
+
+    {
+      "question": "",
+      "validates": "",
+      "strong_answer": "",
+      "red_flags": ""
+    }
+
+    CONSTRAINTS:
+    - Max ~20 words per field
+    - No line breaks inside values
+    - Do NOT return arrays
+    - Do NOT merge fields into strings
+    - Do NOT change key names
+
+    MARKDOWN SECTION:
+    - "recommended_questions_markdown" MUST be valid markdown
+    - Include Technical and Behavioral sections
+    - Keep concise
+
+    FINAL VALIDATION (MANDATORY):
+    Before responding, ensure:
+    - JSON is complete and valid
+    - No missing quotes
+    - No trailing commas
+    - recommended_questions has EXACTLY 5 keys (question1–question5)
+    - Each contains all required fields
+    - Can be parsed by JSON.parse()
+
+    EXPECTED OUTPUT:
     {
       "role": "",
       "specialty": "",
@@ -437,11 +486,15 @@ export default async function handler(req, res) {
         "",
         ""
       ],
-      "recommended_questions": [
-        "Question: ... | Validates: ... | Strong answer: ... | Red flags: ...",
-        "Question: ... | Validates: ... | Strong answer: ... | Red flags: ..."
-      ],
-      "recommended_questions_markdown": "# Interview Questions\n\n## Technical\n- ...\n\n## Behavioral\n- ..."
+      "recommended_questions": {
+        "question1": {
+          "question": "",
+          "validates": "",
+          "strong_answer": "",
+          "red_flags": ""
+        }
+      },
+      "recommended_questions_markdown": "# Interview Questions\\n\\n## Technical\\n- ...\\n\\n## Behavioral\\n- ..."
     }
     `;
 
