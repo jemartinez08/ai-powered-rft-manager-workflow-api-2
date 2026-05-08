@@ -353,7 +353,6 @@ export default async function handler(req, res) {
       role,
       specialty,
       competency_level,
-      role_taxonomy,
       responsible,
       job_description,
       interviewers,
@@ -384,6 +383,8 @@ export default async function handler(req, res) {
     const message = `
     Return ONLY valid JSON. No explanations. No extra text before or after.
 
+    Analyze the following email and extract structured hiring information.
+    
     You are an expert technical recruiter assistant.
 
     Generate recommended interview questions and structured hiring information based on the provided job details.
@@ -393,7 +394,6 @@ export default async function handler(req, res) {
     - Role: ${role}
     - Specialty: ${specialty || "Not specified"}
     - Competency Level: ${competency_level || "Not specified"}
-    - Role Taxonomy: ${role_taxonomy || "Not specified"}
     - Responsible: ${responsible || "Not specified"}
 
     JOB DESCRIPTION:
@@ -448,6 +448,11 @@ export default async function handler(req, res) {
 
     EXPECTED OUTPUT:
     {
+      "role": "",
+      "specialty": "",
+      "competency_level": "",
+      "role_taxonomy": "",
+      "responsible": "",
       "profile_bullets": [
         "",
         ""
@@ -521,7 +526,6 @@ export default async function handler(req, res) {
         role,
         specialty: specialty || null,
         competency_level: competency_level || null,
-        role_taxonomy: role_taxonomy || null,
         responsible: responsible || null,
       },
       interviewers: interviewerData || null,
@@ -552,7 +556,6 @@ export default async function handler(req, res) {
         role,
         specialty: specialty || null,
         competency_level: competency_level || null,
-        role_taxonomy: role_taxonomy || null,
         responsible: responsible || null,
       },
       interviewers: interviewerData || null,
