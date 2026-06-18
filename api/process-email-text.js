@@ -30,6 +30,16 @@ async function getInterviewers() {
   return response.data;
 }
 
+// Clean unnecessary spaces around colons in the text
+function normalizeColons(text) {
+  return text.replace(/\s*:\s*/g, " : ");
+}
+
+// Clean unnecessary spaces around dashes in the text
+function normalizeDashes(text) {
+  return text.replace(/\s*-\s*/g, " - ");
+}
+
 // ============================
 // 🔹 Seleccionar al interviewer utilizando AI
 // ============================
@@ -160,9 +170,12 @@ async function selectInterviewer(interviewers, jobDescription) {
 // ============================
 function extractPerson(cleanBody, label) {
   const regex = new RegExp(
-    `${label}:\\s*([A-Z0-9]+)\\s*-\\s*([^\\n\\r]+?)(?=\\s+\\w+:|\\n|$)`,
+    `${label}\\s*:\\s*([A-Z0-9]+)\\s*-\\s*([^\\n\\r]+?)(?=\\s+\\w+\\s*:|\\n|$)`,
     "i",
   );
+
+  cleanBody = normalizeColons(cleanBody);
+  cleanBody = normalizeDashes(cleanBody);
 
   const match = cleanBody.match(regex);
 
@@ -175,7 +188,9 @@ function extractPerson(cleanBody, label) {
 }
 
 async function findPeople(body) {
-  const cleanBody = normalizeBody(body);
+  let cleanBody = normalizeBody(body);
+  cleanBody = normalizeColons(cleanBody);
+  cleanBody = normalizeDashes(cleanBody);
 
   const interviewersFinalList = [];
 
@@ -387,6 +402,8 @@ export default async function handler(req, res) {
   try {
     const { subject, body } = req.body;
 
+    console.log("Received email with subject:", subject);
+
     if (!subject || !body) {
       return res.status(400).json({
         success: false,
@@ -498,13 +515,14 @@ export default async function handler(req, res) {
     }
     `;
 
+    console.log("Token:", `Bearer ${process.env.LLM_API_TOKEN}`);
     // ============================
     // 🔹 LLM CALL
     // ============================
     const response = await fetch(process.env.LLM_API_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.LLM_API_KEY}`,
+        Authorization: `Bearer ${process.env.LLM_API_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -513,6 +531,10 @@ export default async function handler(req, res) {
         enable_memory: true,
       }),
     });
+
+    const responseBody = await response.text();
+
+    console.log("Body:", responseBody);
 
     const data = await response.json();
 
