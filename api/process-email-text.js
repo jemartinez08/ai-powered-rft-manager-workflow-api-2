@@ -515,14 +515,13 @@ export default async function handler(req, res) {
     }
     `;
 
-    console.log("Token:", `Bearer ${process.env.LLM_API_TOKEN}`);
     // ============================
     // 🔹 LLM CALL
     // ============================
     const response = await fetch(process.env.LLM_API_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.LLM_API_TOKEN}`,
+        Authorization: `Bearer ${process.env.LLM_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -532,13 +531,15 @@ export default async function handler(req, res) {
       }),
     });
 
-    const responseBody = await response.text();
+    const responseBody = JSON.parse(await response.text());
 
-    console.log("Body:", responseBody);
+    const dataResponse = responseBody;
 
-    const data = await response.json();
+    const parsedResponse = JSON.parse(dataResponse.response);
 
-    const llmText = data?.message || data?.response || data?.output || "";
+    const llmText = parsedResponse;
+
+    console.log("LLM Text", llmText);
 
     // ============================
     // 🔹 PARSE JSON
@@ -546,7 +547,7 @@ export default async function handler(req, res) {
     let parsedJSON;
 
     try {
-      parsedJSON = JSON.parse(llmText);
+      parsedJSON = llmText;
     } catch {
       const jsonMatch = llmText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
